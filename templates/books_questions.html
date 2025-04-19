@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Generated MCQs</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 30px;
+            background-color: #f8f9fa;
+        }
+        .question-card {
+            margin-bottom: 20px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+        }
+        .correct-answer {
+            color: green;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2 class="mb-4 text-center">Generated MCQs</h2>
+
+        {% if questions_data %}
+            {% for q in questions_data %}
+                <div class="question-card">
+                    <h5>Q{{ loop.index }}: {{ q.question }}</h5>
+                    <ul class="list-group mt-2">
+                        <li class="list-group-item">a) {{ q.options[0] }}</li>
+                        <li class="list-group-item">b) {{ q.options[1] }}</li>
+                        <li class="list-group-item">c) {{ q.options[2] }}</li>
+                        <li class="list-group-item">d) {{ q.options[3] }}</li>
+                    </ul>
+                    <!--<p class="mt-2 correct-answer">Correct Answer: {{ q.correct }}</p>-->
+                    
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-warning text-center">
+                No questions generated.
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>

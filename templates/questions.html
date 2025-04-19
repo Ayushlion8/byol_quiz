@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Questions</title>
+</head>
+<body>
+    <h1>Generated Questions</h1>
+
+    <p><strong>Topic:</strong> {{ topic }}</p>
+    <p><strong>Query:</strong> {{ query }}</p>
+
+    <ul>
+        {% for q in questions %}
+            <li>{{ q }}</li>
+        {% endfor %}
+    </ul>
+
+    <br>
+    <a href="/book_questions">Generate More Questions</a>
+</body>
+</html>

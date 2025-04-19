@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Result</title>
+
+    <!-- Bootstrap CSS & Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            overflow-x: hidden;
+        }
+
+        .background-animation {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .background-animation span {
+            position: absolute;
+            display: block;
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.1);
+            animation: animate 25s linear infinite;
+            border-radius: 50%;
+        }
+
+        @keyframes animate {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-1000px) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            backdrop-filter: blur(15px);
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            padding: 40px;
+            margin-top: 60px;
+            width: 90%;
+            max-width: 800px;
+            color: #fff;
+        }
+
+        h1 {
+            text-align: center;
+            color: #00ffae;
+            margin-bottom: 30px;
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        h2 {
+            color: #ffd166;
+            margin-top: 25px;
+        }
+
+        h3 {
+            color: #fcbf49;
+            margin-top: 20px;
+        }
+
+        .weak-topic,
+        .weak-question,
+        .article-list {
+            background-color: rgba(255, 255, 255, 0.08);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .weak-topic ul,
+        .article-list ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        .article-list a {
+            color: #9ae3f0;
+            word-break: break-word;
+        }
+
+        .article-list a:hover {
+            color: #fff;
+        }
+
+        .btn-primary {
+            background: linear-gradient(to right, #ff758c, #ff7eb3);
+            border: none;
+            padding: 12px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 12px;
+            margin-top: 30px;
+            color: #fff;
+            transition: 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .explanation {
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 8px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .question-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="background-animation">
+        <span style="left: 10%; animation-delay: 0s;"></span>
+        <span style="left: 20%; animation-delay: 2s;"></span>
+        <span style="left: 70%; animation-delay: 4s;"></span>
+        <span style="left: 90%; animation-delay: 1s;"></span>
+        <span style="left: 30%; animation-delay: 3s;"></span>
+        <span style="left: 50%; animation-delay: 5s;"></span>
+    </div>
+
+    <div class="container">
+        <h1><i class="fas fa-chart-line me-2"></i>Your Score: {{ score }}/{{ total }}</h1>
+
+        {% if weak_topics %}
+            <h2><i class="fas fa-exclamation-triangle me-2"></i>Areas You Need to Improve</h2>
+            <div class="weak-topic">
+                <ul>
+                    {% for topic in weak_topics %}
+                        <li>{{ topic }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <h3><i class="fas fa-book-reader me-2"></i>Recommended Articles</h3>
+            <div class="article-list">
+                <ul>
+                    {% for article in articles %}
+                        <li>
+                            <b>{{ article['question'] }}</b>:
+                            <a href="{{ article['recommended link'] }}" target="_blank">{{ article['recommended link'] }}</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <h3><i class="fas fa-question-circle me-2"></i>Questions You Got Wrong & Explanations</h3>
+            <div class="weak-question">
+                {% for question, explanation in question_explanations %}
+                    <div class="mb-4">
+                        <div class="question-title">{{ question }}</div>
+                        <div class="explanation">{{ explanation }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <h2 class="text-success text-center">🎉 Great Job! No Weak Areas Found.</h2>
+        {% endif %}
+
+        <div class="text-center">
+            <a href="/" class="btn btn-primary mt-4">Try Again</a>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

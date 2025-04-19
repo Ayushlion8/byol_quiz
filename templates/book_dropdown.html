@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Selector</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #e0c3fc, #8ec5fc);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        form {
+            backdrop-filter: blur(15px);
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 50px 35px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 420px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            animation: floatIn 1s ease-out;
+        }
+
+        @keyframes floatIn {
+            0% {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            color: #fff;
+            font-weight: 600;
+            font-size: 30px;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        select {
+            width: 100%;
+            padding: 14px 12px;
+            font-size: 16px;
+            border: none;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            outline: none;
+            background: rgba(255, 255, 255, 0.7);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            transition: box-shadow 0.3s ease;
+        }
+
+        select:focus {
+            box-shadow: 0 0 0 3px rgba(123, 87, 255, 0.3);
+        }
+
+        button {
+            background: linear-gradient(135deg, #7b57ff, #6a85f1);
+            color: white;
+            padding: 14px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.3s ease;
+        }
+
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(123, 87, 255, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <form action="/get_paths" method="post">
+        <h1>Select a Book</h1>
+        <select name="book_name" id="book-select">
+            {% for book in books %}
+            <option value="{{ book.name }}">{{ book.name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Send to Server</button>
+    </form>
+</body>
+</html>

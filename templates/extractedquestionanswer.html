@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extracted Questions</title>
+</head>
+<body>
+    <h1>Extracted Questions and Options</h1>
+    {% for question, opts in zip(questions, options) %}
+        <h3>{{ question }}</h3>
+        <ul>
+            {% for key, value in opts.items() %}
+                <li>{{ key }}: {{ value }}</li>
+            {% endfor %}
+        </ul>
+    {% endfor %}
+    <a href="/">Upload another PDF</a>
+</body>
+</html>
