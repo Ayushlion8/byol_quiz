@@ -30,7 +30,7 @@ geminimodel = genai.GenerativeModel(model_name="gemini-2.5-flash-preview-04-17")
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 app = Flask(__name__)
-app.secret_key = 'dev_key_123'
+# app.secret_key = 'dev_key_123'
 # UPLOAD_FOLDER and ALLOWED_EXTENSIONS seem unused in the provided code for book processing
 # They might be for a different feature (e.g., user PDF uploads)
 app.config['UPLOAD_FOLDER'] = 'uploads'
