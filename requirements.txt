@@ -7,13 +7,11 @@ google-generativeai
 faiss-cpu
 sentence-transformers
 pandas 
-#git+https://github.com/huggingface/transformers@main
 fitz
 opencv-python
 accelerate
 gunicorn
 python-dotenv
 flask-socketio 
-mediapipe
 jsonify
 langchain-community
