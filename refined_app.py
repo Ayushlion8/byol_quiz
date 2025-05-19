@@ -26,7 +26,11 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 # Consider using a more stable model name if available, experimental ones might change
-geminimodel = genai.GenerativeModel(model_name="gemini-2.5-flash-preview-04-17") # Updated to a common flash model
+# Updated model name to a common non-preview model from the Gemini family.
+# Ensure this model supports the features you need (e.g., chat, content generation).
+# You might need to check the Gemini documentation for the most appropriate stable model.
+# Using "gemini-1.5-flash-latest" as a placeholder for a recent flash model.
+geminimodel = genai.GenerativeModel(model_name="gemini-1.5-flash-latest")
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 app = Flask(__name__)
@@ -41,8 +45,22 @@ app.config['ALLOWED_EXTENSIONS'] = {'pdf'}
 PDF_DIR = "pdf_files"
 INDEX_DIR = "index_files"
 # Ensure these directories exist if needed for writing, though reading is the primary focus here
-# os.makedirs(PDF_DIR, exist_ok=True)
-# os.makedirs(INDEX_DIR, exist_ok=True)
+# os.makedirs(PDF_DIR, exist_ok=True) # Will be created in if __name__ == '__main__'
+# os.makedirs(INDEX_DIR, exist_ok=True) # Will be created in if __name__ == '__main__'
+
+# --- Pre-compile regexes for generate_questions ---
+RE_QUESTION_STEM = re.compile(r'Q\d+:\s*(.*?)(?=\n\s*[aA]\))', re.DOTALL | re.IGNORECASE)
+RE_OPTIONS_BLOCK = re.compile(
+    r'[aA]\)\s*(?P<option_a>.*?)\s*'
+    r'[bB]\)\s*(?P<option_b>.*?)\s*'
+    r'[cC]\)\s*(?P<option_c>.*?)\s*'
+    r'[dD]\)\s*(?P<option_d>.*?)\s*'
+    r'(?=\n\s*(?:Q\d+|Answer List:)|\Z)',
+    re.DOTALL | re.IGNORECASE
+)
+RE_ANSWER_LIST_STR = re.compile(r"Answer List:\s*(\[.*?\])", re.DOTALL | re.IGNORECASE)
+# --- End of pre-compiled regexes for generate_questions ---
+
 
 def recommendTopics(topic):
     # Assuming this CSV remains in the root or its own specified path
@@ -95,89 +113,150 @@ def recommendTopics(topic):
 
 
 def generate_questions(topic):
+    # Updated prompt for clarity and to guide LLM on answer format
     prompt = f"""You are an expert in {topic}. Your task is to generate 10 multiple-choice questions (MCQs) covering diverse topics within this subject.
     Each question must be followed by four answer choices (a, b, c, d), and the correct answer must be among them.
+    Ensure each question stem is clearly identifiable (e.g., ending with a colon or question mark before the options).
+
     Output Format:
-    Q1: [Question]?
+    Q1: [Question Text]?
     a) [Option 1]
     b) [Option 2]
     c) [Option 3]
     d) [Option 4]
+
     ... (up to Q10)
-    Answer List: ['Correct Option for Q1', 'Correct Option for Q2', ..., 'Correct Option for Q10'] (Correct options exactly as written in the choices above)
+
+    Answer List: ['Correct letter for Q1', 'Correct letter for Q2', ..., 'Correct letter for Q10'] (e.g., ['a', 'c', 'd', ...])
+    Alternatively, the Answer List can be: ['Letter) Full text for Q1', 'Letter) Full text for Q2', ...]
     """
     try:
         response = geminimodel.generate_content(prompt)
-        # Added basic safety check
         if not response.parts:
-             logger.error("No response parts received from Gemini model.")
-             return [], 0
-        text = response.text # Use .text directly
+            logger.error("No response parts received from Gemini model.")
+            return [], 0
+        text = response.text
     except Exception as e:
-         logger.error(f"Error generating content from Gemini: {e}")
-         return [], 0
+        logger.error(f"Error generating content from Gemini: {e}")
+        return [], 0
 
-    print("-------------------------------------")
-    print(text)
-    print("--------------------------------------")
-    # Improved regex and parsing robustness
-    questions = re.findall(r'Q\d+:\s*(.*?)\?', text, re.IGNORECASE | re.DOTALL)
-    # Ensure options capture multi-line possibilities within an option, stopping at the next letter or Answer List
-    options_raw = re.findall(r'a\)\s*(.*?)\s*b\)\s*(.*?)\s*c\)\s*(.*?)\s*d\)\s*(.*?)(?=\nQ\d+|\nAnswer List:|\Z)', text, re.IGNORECASE | re.DOTALL)
-    options = [[opt.strip() for opt in group] for group in options_raw] # Clean whitespace
+    logger.debug("-----------------RAW LLM OUTPUT--------------------")
+    logger.debug(text) # Uncomment for debugging LLM raw output
+    logger.debug("-------------------------------------------------")
 
-    match = re.search(r"Answer List:\s*(\[.*?\])", text, re.IGNORECASE | re.DOTALL)
-    correct_answers = []
-    if match:
+    questions = [q.strip() for q in RE_QUESTION_STEM.findall(text)]
+    parsed_options_list = []
+    for match in RE_OPTIONS_BLOCK.finditer(text):
+        opts = [
+            match.group('option_a').strip(),
+            match.group('option_b').strip(),
+            match.group('option_c').strip(),
+            match.group('option_d').strip()
+        ]
+        parsed_options_list.append(opts)
+
+    answer_list_match = RE_ANSWER_LIST_STR.search(text)
+    llm_correct_answers_raw = []
+    if answer_list_match:
         try:
-            # Use literal_eval carefully, ensure input is trusted or sanitize
-            raw_list_str = match.group(1)
-            correct_answers = ast.literal_eval(raw_list_str)
-            correct_answers = [str(ans).strip() for ans in correct_answers] # Ensure strings and strip
+            raw_list_str = answer_list_match.group(1)
+            llm_correct_answers_raw = ast.literal_eval(raw_list_str)
+            llm_correct_answers_raw = [str(ans).strip() for ans in llm_correct_answers_raw]
         except (ValueError, SyntaxError) as e:
-            logger.error(f"Error parsing Answer List: {e}. Raw string: '{match.group(1)}'")
-            correct_answers = [] # Fallback to empty list
+            logger.error(f"Error parsing Answer List string: {e}. Raw string: '{raw_list_str if 'raw_list_str' in locals() else 'not found'}'")
+            llm_correct_answers_raw = []
+    else:
+        logger.warning("Could not find 'Answer List:' in the LLM output.")
 
     num_questions_found = len(questions)
-    num_options_found = len(options)
-    num_answers_found = len(correct_answers)
+    num_options_sets_found = len(parsed_options_list)
+    num_answers_found = len(llm_correct_answers_raw)
 
-    if not (num_questions_found == num_options_found == num_answers_found):
-         logger.warning(f"Mismatch in parsed questions ({num_questions_found}), options ({num_options_found}), and answers ({num_answers_found}). Check LLM output format.")
-         # Attempt to align based on the minimum count
-         min_count = min(num_questions_found, num_options_found, num_answers_found)
-         questions = questions[:min_count]
-         options = options[:min_count]
-         correct_answers = correct_answers[:min_count]
-         count = min_count
+    logger.debug(f"Found: {num_questions_found} questions, {num_options_sets_found} option sets, {num_answers_found} raw answers.")
+
+    final_count = 0
+    if not (num_questions_found == num_options_sets_found == num_answers_found and num_questions_found > 0):
+        logger.warning(
+            f"Mismatch in parsed items: Questions ({num_questions_found}), "
+            f"Option Sets ({num_options_sets_found}), Raw Answers ({num_answers_found}). "
+            "Attempting to align based on minimum common count."
+        )
+        final_count = min(num_questions_found, num_options_sets_found, num_answers_found)
+        if final_count < num_questions_found or final_count < num_options_sets_found or final_count < num_answers_found:
+             logger.warning(f"Data will be truncated to {final_count} items.")
+        questions = questions[:final_count]
+        parsed_options_list = parsed_options_list[:final_count]
+        llm_correct_answers_raw = llm_correct_answers_raw[:final_count]
+    elif num_questions_found > 0 :
+        final_count = num_questions_found
     else:
-        count = num_questions_found
+        logger.error("No valid question data could be parsed. Counts are zero or mismatched leading to zero.")
+        return [], 0
 
-    logger.debug(f"Generated {count} questions.")
-    logger.debug(f"Correct answers parsed: {correct_answers}")
-
+    logger.info(f"Successfully parsed {final_count} question structures.")
     question_data = []
-    for i in range(count):
-        q = questions[i]
-        opt = options[i]
-        ans = correct_answers[i]
+    letter_to_index = {'a': 0, 'b': 1, 'c': 2, 'd': 3}
 
-        # Basic validation: ensure the listed correct answer is one of the options
-        if ans not in opt:
-            logger.warning(f"Correct answer '{ans}' for Q{i+1} not found in options {opt}. Defaulting to first option or handling as error might be needed.")
-            # Decide on fallback: Use first option? Mark as invalid? Skip question?
-            # Using first option for now, but this indicates an LLM output issue.
-            corrected_answer = opt[0] if opt else ""
-        else:
-            corrected_answer = ans
+    for i in range(final_count):
+        q_text = questions[i]
+        current_options = parsed_options_list[i]
+        llm_ans_item = llm_correct_answers_raw[i].lower()
+
+        determined_correct_text = ""
+
+        if len(llm_ans_item) == 1 and llm_ans_item in letter_to_index:
+            correct_idx = letter_to_index[llm_ans_item]
+            if 0 <= correct_idx < len(current_options):
+                determined_correct_text = current_options[correct_idx]
+                logger.debug(f"Q{i+1} ans '{llm_ans_item}': Matched as letter, maps to option {correct_idx+1}: '{determined_correct_text[:50]}...'")
+
+        if not determined_correct_text:
+            for letter_key, correct_idx in letter_to_index.items():
+                if llm_ans_item.startswith(letter_key + ")") or \
+                   llm_ans_item.startswith(letter_key + "."):
+                    if 0 <= correct_idx < len(current_options):
+                        determined_correct_text = current_options[correct_idx]
+                        logger.debug(f"Q{i+1} ans '{llm_ans_item[:50]}...': Matched as letter-prefix, maps to option {correct_idx+1}: '{determined_correct_text[:50]}...'")
+                        break
+
+        if not determined_correct_text:
+            potential_text_from_llm = llm_ans_item
+            for letter_key in letter_to_index.keys():
+                if potential_text_from_llm.startswith(letter_key + ")"):
+                    potential_text_from_llm = potential_text_from_llm[len(letter_key)+1:].strip()
+                    break
+                if potential_text_from_llm.startswith(letter_key + "."):
+                    potential_text_from_llm = potential_text_from_llm[len(letter_key)+1:].strip()
+                    break
+            for opt_idx, opt_text_candidate in enumerate(current_options):
+                if potential_text_from_llm == opt_text_candidate.lower():
+                    determined_correct_text = opt_text_candidate
+                    logger.debug(f"Q{i+1} ans '{llm_ans_item[:50]}...': Matched as full text (prefix stripped: '{potential_text_from_llm[:50]}...'), maps to option {opt_idx+1}: '{determined_correct_text[:50]}...'")
+                    break
+
+        if not determined_correct_text:
+            logger.warning(
+                f"Q{i+1}: Could not definitively match LLM answer '{llm_correct_answers_raw[i]}' "
+                f"to options {current_options}. Defaulting to the first option."
+            )
+            determined_correct_text = current_options[0] if current_options else ""
+
+        if current_options and determined_correct_text not in current_options:
+            logger.error(
+                f"Q{i+1} FATAL PARSE ERROR: Determined correct answer '{determined_correct_text}' "
+                f"is NOT in the parsed options {current_options}. This indicates a flaw in parsing logic. "
+                f"LLM raw answer was: '{llm_correct_answers_raw[i]}'. Defaulting to first option."
+            )
+            determined_correct_text = current_options[0] if current_options else ""
 
         question_data.append({
-            "question": q,
-            "options": opt,
-            "correct": corrected_answer
+            "question": q_text,
+            "options": current_options,
+            "correct": determined_correct_text
         })
 
-    return question_data, count
+    logger.info(f"Prepared {len(question_data)} questions for the quiz.")
+    return question_data, len(question_data)
 
 
 def get_subtopic(question):
@@ -357,6 +436,7 @@ def get_paths():
              logger.warning("No context provided to generate questions.")
              return []
 
+        # Using the same improved parsing logic as generate_questions
         prompt = f"""Based *only* on the following text excerpts related to '{query}', generate exactly 5 challenging multiple-choice questions (MCQs). Each question must test in-depth knowledge found within the provided text.
 
         Provided Text Excerpts:
@@ -369,6 +449,7 @@ def get_paths():
         2. Ensure the questions and options are derived *directly* from the provided text.
         3. The correct answer must be one of the four options.
         4. Format the output precisely as shown below.
+        5. Ensure each question stem ends with a colon or question mark before the options.
 
         Output Format:
         Q1: [Question 1]?
@@ -377,31 +458,10 @@ def get_paths():
         c) [Option 1c]
         d) [Option 1d]
 
-        Q2: [Question 2]?
-        a) [Option 2a]
-        b) [Option 2b]
-        c) [Option 2c]
-        d) [Option 2d]
+        ... (up to Q5)
 
-        Q3: [Question 3]?
-        a) [Option 3a]
-        b) [Option 3b]
-        c) [Option 3c]
-        d) [Option 3d]
-
-        Q4: [Question 4]?
-        a) [Option 4a]
-        b) [Option 4b]
-        c) [Option 4c]
-        d) [Option 4d]
-
-        Q5: [Question 5]?
-        a) [Option 5a]
-        b) [Option 5b]
-        c) [Option 5c]
-        d) [Option 5d]
-
-        Answer List: ['Correct Option for Q1', 'Correct Option for Q2', 'Correct Option for Q3', 'Correct Option for Q4', 'Correct Option for Q5']
+        Answer List: ['Correct letter for Q1', 'Correct letter for Q2', ..., 'Correct letter for Q5'] (e.g., ['a', 'c', 'd', 'b', 'a'])
+        Alternatively, the Answer List can be: ['Letter) Full text for Q1', 'Letter) Full text for Q2', ...]
         """
         try:
             logger.info("Generating book-based questions from retrieved text...")
@@ -413,53 +473,111 @@ def get_paths():
         except Exception as e:
             logger.error(f"Error generating book questions from Gemini: {e}")
             return []
-        print("--------------------------------------------------")
-        print(text)
-        print("--------------------------------------------------")
-        # --- Parsing logic similar to generate_questions, adapted for 5 questions ---
-        questions = re.findall(r'Q\d+:\s*(.*?)\?', text, re.IGNORECASE | re.DOTALL)[:5]
-        options_raw = re.findall(r'a\)\s*(.*?)\s*b\)\s*(.*?)\s*c\)\s*(.*?)\s*d\)\s*(.*?)(?=\nQ\d+|\nAnswer List:|\Z)', text, re.IGNORECASE | re.DOTALL)[:5]
-        options = [[opt.strip() for opt in group] for group in options_raw]
 
-        match = re.search(r"Answer List:\s*(\[.*?\])", text, re.IGNORECASE | re.DOTALL)
-        correct_answers = []
-        if match:
+        # logger.debug("-----------------BOOK QUESTIONS RAW LLM OUTPUT--------------------")
+        # logger.debug(text) # Uncomment for debugging
+        # logger.debug("----------------------------------------------------------------")
+
+        # Re-using the pre-compiled regexes for parsing book questions
+        questions = [q.strip() for q in RE_QUESTION_STEM.findall(text)][:5] # Limit to 5
+        parsed_options_list = []
+        for match in RE_OPTIONS_BLOCK.finditer(text):
+            if len(parsed_options_list) < 5: # Only take up to 5 sets of options
+                opts = [
+                    match.group('option_a').strip(),
+                    match.group('option_b').strip(),
+                    match.group('option_c').strip(),
+                    match.group('option_d').strip()
+                ]
+                parsed_options_list.append(opts)
+        
+        answer_list_match = RE_ANSWER_LIST_STR.search(text)
+        llm_correct_answers_raw = []
+        if answer_list_match:
             try:
-                raw_list_str = match.group(1)
-                correct_answers = ast.literal_eval(raw_list_str)
-                correct_answers = [str(ans).strip() for ans in correct_answers][:5] # Limit to 5
+                raw_list_str = answer_list_match.group(1)
+                llm_correct_answers_raw = ast.literal_eval(raw_list_str)
+                llm_correct_answers_raw = [str(ans).strip() for ans in llm_correct_answers_raw][:5] # Limit to 5
             except (ValueError, SyntaxError) as e:
-                logger.error(f"Error parsing Answer List for book questions: {e}. Raw: '{match.group(1)}'")
-                correct_answers = []
+                logger.error(f"Error parsing Answer List for book questions: {e}. Raw: '{raw_list_str if 'raw_list_str' in locals() else 'not found'}'")
+                llm_correct_answers_raw = []
+        else:
+            logger.warning("Could not find 'Answer List:' in the book questions LLM output.")
+
 
         num_q = len(questions)
-        num_o = len(options)
-        num_a = len(correct_answers)
+        num_o = len(parsed_options_list)
+        num_a = len(llm_correct_answers_raw)
 
-        if not (num_q == num_o == num_a == 5):
-             logger.warning(f"Book questions: Expected 5 Q/O/A, found Q:{num_q}, O:{num_o}, A:{num_a}. Truncating/padding might occur.")
-             # Adjust lists to the minimum common length, up to 5
-             min_len = min(num_q, num_o, num_a, 5)
-             questions = questions[:min_len]
-             options = options[:min_len]
-             correct_answers = correct_answers[:min_len]
+        logger.debug(f"Book questions parsed: Q:{num_q}, O_sets:{num_o}, A_raw:{num_a}")
+
+        # Align counts for book questions (max 5)
+        final_book_q_count = 0
+        if not (num_q == num_o == num_a and num_q > 0):
+            logger.warning(f"Book questions: Mismatch in parsed items. Q:{num_q}, O:{num_o}, A:{num_a}. Attempting to align.")
+            final_book_q_count = min(num_q, num_o, num_a)
+            # Further cap at 5 if min_count is higher due to regex over-matching before slicing
+            final_book_q_count = min(final_book_q_count, 5)
+            if final_book_q_count < 5:
+                 logger.warning(f"Book question data will be truncated to {final_book_q_count} items.")
+            questions = questions[:final_book_q_count]
+            parsed_options_list = parsed_options_list[:final_book_q_count]
+            llm_correct_answers_raw = llm_correct_answers_raw[:final_book_q_count]
+        elif num_q > 0:
+            final_book_q_count = min(num_q, 5) # Ensure we don't exceed 5 even if all match
+        else:
+            logger.error("No valid book question data could be parsed.")
+            return []
+
 
         question_data = []
-        for i in range(len(questions)): # Iterate based on available aligned data
-            q = questions[i]
-            opt = options[i]
-            ans = correct_answers[i]
+        letter_to_index = {'a': 0, 'b': 1, 'c': 2, 'd': 3} # Re-define locally for clarity
 
-            if ans not in opt:
-                logger.warning(f"Book Q{i+1}: Correct answer '{ans}' not in options {opt}. Defaulting to first.")
-                corrected_answer = opt[0] if opt else ""
-            else:
-                corrected_answer = ans
+        for i in range(final_book_q_count):
+            q_text = questions[i]
+            current_options = parsed_options_list[i]
+            llm_ans_item = llm_correct_answers_raw[i].lower()
+            determined_correct_text = ""
+
+            if len(llm_ans_item) == 1 and llm_ans_item in letter_to_index:
+                correct_idx = letter_to_index[llm_ans_item]
+                if 0 <= correct_idx < len(current_options):
+                    determined_correct_text = current_options[correct_idx]
+
+            if not determined_correct_text:
+                for letter_key, correct_idx in letter_to_index.items():
+                    if llm_ans_item.startswith(letter_key + ")") or \
+                       llm_ans_item.startswith(letter_key + "."):
+                        if 0 <= correct_idx < len(current_options):
+                            determined_correct_text = current_options[correct_idx]
+                            break
+            
+            if not determined_correct_text:
+                potential_text_from_llm = llm_ans_item
+                for letter_key in letter_to_index.keys():
+                    if potential_text_from_llm.startswith(letter_key + ")"):
+                        potential_text_from_llm = potential_text_from_llm[len(letter_key)+1:].strip()
+                        break
+                    if potential_text_from_llm.startswith(letter_key + "."):
+                        potential_text_from_llm = potential_text_from_llm[len(letter_key)+1:].strip()
+                        break
+                for opt_text_candidate in current_options:
+                    if potential_text_from_llm == opt_text_candidate.lower():
+                        determined_correct_text = opt_text_candidate
+                        break
+            
+            if not determined_correct_text:
+                logger.warning(f"Book Q{i+1}: Could not match LLM answer '{llm_correct_answers_raw[i]}' to options. Defaulting.")
+                determined_correct_text = current_options[0] if current_options else ""
+
+            if current_options and determined_correct_text not in current_options:
+                 logger.error(f"Book Q{i+1} FATAL PARSE: Correct answer '{determined_correct_text}' not in options {current_options}. LLM raw: '{llm_correct_answers_raw[i]}'. Defaulting.")
+                 determined_correct_text = current_options[0] if current_options else ""
 
             question_data.append({
-                "question": q,
-                "options": opt,
-                "correct": corrected_answer
+                "question": q_text,
+                "options": current_options,
+                "correct": determined_correct_text
             })
         logger.info(f"Generated {len(question_data)} book-based questions.")
         return question_data
@@ -525,7 +643,7 @@ def index():
              topic = 'General Knowledge' # Ensure topic is not empty
              logger.warning("Received empty topic, defaulting to 'General Knowledge'.")
         logger.info(f"Generating quiz for topic: {topic}")
-        questions, count = generate_questions(topic)
+        questions, count = generate_questions(topic) # Uses the updated function
         if not questions:
              # Handle case where question generation fails
              logger.error(f"Failed to generate any questions for topic: {topic}")
@@ -739,29 +857,20 @@ def chat():
 
              # Construct prompt for the LLM
              # System prompts or context can be added here or during start_chat
-             prompt = f"""You are a helpful assistant knowledgeable in {topic}.
-Please answer the following question clearly and concisely:
-{user_input}"""
-
+             # For `start_chat()`, the history is managed by the chat object.
+             # We send just the new user input.
              logger.debug(f"Sending message to Gemini for chat {chat_id}: {user_input}")
              try:
-                 # Send message using the retrieved chat object
-                 # The chat object maintains the history internally
-                 response = chat_obj.send_message(prompt)
+                 response = chat_obj.send_message(user_input) # Send only the new message
                  bot_reply = response.text.strip()
                  logger.debug(f"Received reply from Gemini for chat {chat_id}: {bot_reply[:100]}...")
 
-                 # Update the display history in the session
                  display_history.append(("You", user_input))
                  display_history.append(("Gemini", bot_reply))
-                 session["display_history"] = display_history # Save updated history back to session
-
-                 # No need to manually manage chat_obj.history if using start_chat() correctly,
-                 # but ensure the display history is updated.
+                 session["display_history"] = display_history
 
              except Exception as e:
                  logger.error(f"Error sending message or receiving reply in chat {chat_id}: {e}")
-                 # Optionally inform the user in the chat interface
                  display_history.append(("System", "Sorry, there was an error processing your message."))
                  session["display_history"] = display_history
 
