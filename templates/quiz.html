@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Quiz</title>
+    <title>Quiz Time!</title>
 
     <!-- Bootstrap CSS & Font Awesome -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -16,18 +16,20 @@
 
         body {
             margin: 0;
-            padding: 0;
-            height: 100vh;
+            padding: 20px 0; /* Added padding for scroll */
+            min-height: 100vh; /* Ensure body takes at least full viewport height */
             background: linear-gradient(135deg, #667eea, #764ba2);
             display: flex;
             justify-content: center;
-            align-items: flex-start;
+            align-items: flex-start; /* Align to top to allow scrolling */
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow-x: hidden;
         }
 
         .background-animation {
-            position: fixed;
+            position: fixed; /* Fixed position for background */
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
             overflow: hidden;
@@ -62,37 +64,58 @@
             background: rgba(255, 255, 255, 0.15);
             border-radius: 20px;
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-            padding: 40px;
-            margin-top: 60px;
+            padding: 30px 40px; /* Adjusted padding */
+            margin-top: 40px; /* Reduced margin-top */
+            margin-bottom: 40px; /* Added margin-bottom for scroll */
             width: 90%;
-            max-width: 700px;
+            max-width: 750px; /* Slightly increased max-width */
             color: #fff;
         }
 
-        h1 {
+        .quiz-header {
             text-align: center;
             color: #ffffff;
-            margin-bottom: 30px;
-            font-size: 30px;
+            margin-bottom: 25px;
+        }
+        .quiz-header h1 {
+            font-size: 28px; /* Adjusted */
             font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .quiz-header p {
+            font-size: 16px;
+            color: #e0e0e0;
         }
 
-        p {
-            margin-bottom: 10px;
+        .question-block {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+        }
+
+        .question-text {
+            font-weight: 600;
+            font-size: 18px; /* Increased */
+            margin-bottom: 15px;
+            line-height: 1.4;
         }
 
         .form-check-input {
             margin-right: 10px;
+            cursor: pointer;
         }
 
         .form-check-label {
             font-size: 16px;
+            cursor: pointer;
+            width: 100%; /* Make label clickable for the whole area */
         }
 
         .form-check {
             background: rgba(255, 255, 255, 0.08);
             border-radius: 10px;
-            padding: 10px 15px;
+            padding: 12px 18px; /* Adjusted padding */
             margin-bottom: 10px;
             transition: all 0.2s ease;
         }
@@ -100,8 +123,13 @@
         .form-check:hover {
             background: rgba(255, 255, 255, 0.2);
         }
+        .form-check input[type="radio"]:checked + label {
+            color: #a6ffcb; /* Highlight selected option's label */
+            font-weight: 500;
+        }
 
-        button {
+
+        .btn-submit {
             background: linear-gradient(to right, #ff758c, #ff7eb3);
             border: none;
             padding: 12px;
@@ -109,12 +137,12 @@
             font-size: 18px;
             font-weight: 600;
             width: 100%;
-            margin-top: 25px;
+            margin-top: 20px; /* Adjusted */
             color: #fff;
             transition: all 0.3s ease;
         }
 
-        button:hover {
+        .btn-submit:hover {
             transform: scale(1.03);
             box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
         }
@@ -132,26 +160,36 @@
     </div>
 
     <div class="container">
-        <h1><i class="fas fa-lightbulb me-2"></i>Quiz on {{ topic }}</h1>
-        <form action="/submit" method="post">
-            <input type="hidden" name="questions" value="{{ questions }}">
+        <div class="quiz-header">
+            <h1><i class="fas fa-lightbulb me-2"></i>Quiz for {{ username | default('Guest') }}</h1>
+            <p>Topic: <strong>{{ topic }}</strong> | Difficulty: <strong>{{ difficulty | capitalize | default('Medium') }}</strong></p>
+        </div>
+
+                <!-- In quiz.html -->
+        <form action="{{ url_for('submit') }}" method="post">
+            {# Pass the JSON string directly. Ensure HTML attribute quotes don't clash. #}
+            {# Using single quotes for the HTML attribute value if the JSON string uses double quotes. #}
+            {# <input type="hidden" name="questions" value='{{ questions_json_for_hidden_field | safe }}'> #}
+            <input type="hidden" name="questions" value='{{ questions_json_for_hidden_field | replace("'", "&#39;") | safe }}'>
+
+            {# Loop through questions_data_for_template for display #}
             {% for i in range(count) %}
-                <div class="mb-4">
-                    <p><strong>{{ i+1 }}. {{ questions[i].question }}</strong></p>
-                    {% for option in questions[i].options %}
+                <div class="question-block">
+                    <p class="question-text">{{ i+1 }}. {{ questions_data_for_template[i].question }}</p>
+                    {% for option in questions_data_for_template[i].options %}
                         <div class="form-check">
-                            <input class="form-check-input" type="radio" name="question{{ i }}" value="{{ option }}" required>
-                            <label class="form-check-label">
+                            <input class="form-check-input" type="radio" name="question{{ i }}" id="q{{i}}opt{{loop.index0}}" value="{{ option }}" required>
+                            <label class="form-check-label" for="q{{i}}opt{{loop.index0}}">
                                 {{ option }}
                             </label>
                         </div>
                     {% endfor %}
                 </div>
             {% endfor %}
-            <button type="submit" class="btn">Submit</button>
+            <button type="submit" class="btn-submit">Submit Answers</button>
         </form>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
+</body> 
 </html>

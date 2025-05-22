@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiz Result</title>
+    <title>Quiz Result - {{ username | default('Guest') }}</title>
 
     <!-- Bootstrap CSS & Font Awesome -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -16,18 +16,19 @@
 
         body {
             margin: 0;
-            padding: 0;
+            padding: 20px 0; /* Added padding for scroll */
             min-height: 100vh;
             background: linear-gradient(135deg, #667eea, #764ba2);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             justify-content: center;
-            align-items: flex-start;
+            align-items: flex-start; /* Align to top */
             overflow-x: hidden;
         }
 
         .background-animation {
-            position: fixed;
+            position: fixed; /* Fixed position for background */
+            top:0; left:0;
             width: 100%;
             height: 100%;
             overflow: hidden;
@@ -62,84 +63,126 @@
             background: rgba(255, 255, 255, 0.1);
             border-radius: 20px;
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-            padding: 40px;
-            margin-top: 60px;
+            padding: 30px 40px;
+            margin-top: 40px;
+            margin-bottom: 40px; /* For scrolling */
             width: 90%;
-            max-width: 800px;
+            max-width: 850px; /* Increased */
+            color: #fff;
+        }
+        
+        .result-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .result-header h1 {
+            color: #00ffae;
+            font-size: 30px; /* Adjusted */
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .result-header p {
+            font-size: 16px;
+            color: #e0e0e0;
+        }
+        .result-header .score-highlight {
+            font-size: 20px;
+            font-weight: 600;
             color: #fff;
         }
 
-        h1 {
-            text-align: center;
-            color: #00ffae;
-            margin-bottom: 30px;
-            font-size: 32px;
-            font-weight: bold;
-        }
 
         h2 {
             color: #ffd166;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 22px; /* Adjusted */
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding-bottom: 10px;
+        }
+
+        h3 { /* Used for Remedial Quiz Section Title */
+            color: #fca311; /* Different color for distinction */
             margin-top: 25px;
+            margin-bottom: 15px;
+            font-size: 20px; /* Adjusted */
         }
 
-        h3 {
-            color: #fcbf49;
-            margin-top: 20px;
-        }
-
-        .weak-topic,
-        .weak-question,
-        .article-list {
+        .content-section {
             background-color: rgba(255, 255, 255, 0.08);
-            padding: 15px;
+            padding: 20px;
             border-radius: 12px;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
 
-        .weak-topic ul,
-        .article-list ul {
+        .content-section ul {
             margin: 0;
-            padding-left: 18px;
+            padding-left: 20px; /* Indent list items */
         }
+        .content-section ul li {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
 
         .article-list a {
             color: #9ae3f0;
             word-break: break-word;
+            text-decoration: none;
         }
 
         .article-list a:hover {
             color: #fff;
+            text-decoration: underline;
         }
 
-        .btn-primary {
-            background: linear-gradient(to right, #ff758c, #ff7eb3);
+        .btn-custom { /* General button style */
             border: none;
-            padding: 12px 20px;
-            font-size: 18px;
+            padding: 10px 18px; /* Adjusted */
+            font-size: 16px; /* Adjusted */
             font-weight: 600;
-            border-radius: 12px;
-            margin-top: 30px;
+            border-radius: 10px; /* Adjusted */
             color: #fff;
             transition: 0.3s ease;
+            text-decoration: none; /* For <a> tags styled as buttons */
         }
-
-        .btn-primary:hover {
+        .btn-custom:hover {
             transform: scale(1.05);
             box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
         }
 
+        .btn-primary-action { /* For main "Try Again" button */
+            background: linear-gradient(to right, #ff758c, #ff7eb3);
+        }
+        .btn-remedial { /* For remedial quiz buttons */
+            background: linear-gradient(to right, #56ab2f, #a8e063); /* Greenish gradient */
+            margin-left: 10px; /* Space out buttons if needed */
+            display: inline-block; /* To allow margin */
+        }
+
+
         .explanation {
-            background-color: rgba(0, 0, 0, 0.2);
-            padding: 12px;
+            background-color: rgba(0, 0, 0, 0.25); /* Darker for better contrast */
+            padding: 12px 15px;
             border-radius: 10px;
             margin-top: 8px;
             font-size: 0.95rem;
             line-height: 1.5;
+            border-left: 3px solid #ff7eb3; /* Accent border */
         }
 
         .question-title {
             font-weight: bold;
             margin-bottom: 5px;
+            color: #f0e68c; /* Khaki like color for question text */
+        }
+        .great-job {
+            color: #a6ffcb; /* Light green for positive message */
+            font-weight: 500;
+            text-align: center;
+            padding: 15px;
+            background-color: rgba(0, 200, 100, 0.15);
+            border-radius: 10px;
         }
     </style>
 </head>
@@ -155,45 +198,77 @@
     </div>
 
     <div class="container">
-        <h1><i class="fas fa-chart-line me-2"></i>Your Score: {{ score }}/{{ total }}</h1>
+        <div class="result-header">
+            <h1><i class="fas fa-chart-line me-2"></i>Quiz Results</h1>
+            <p>For: <strong>{{ username | default('Guest') }}</strong> on Topic: <strong>{{ topic }}</strong></p>
+            <p class="score-highlight">Your Score: {{ score }}/{{ total }}</p>
+            {% if next_difficulty_for_topic %}
+                <p>Next quiz on "{{ topic }}" will be <strong>{{ next_difficulty_for_topic | capitalize }}</strong> difficulty.</p>
+            {% endif %}
+        </div>
 
-        {% if weak_topics %}
-            <h2><i class="fas fa-exclamation-triangle me-2"></i>Areas You Need to Improve</h2>
-            <div class="weak-topic">
-                <ul>
-                    {% for topic in weak_topics %}
-                        <li>{{ topic }}</li>
+        {% if question_explanations or weak_subtopics_identified %}
+            <h2><i class="fas fa-book-open me-2"></i>Review & Improve</h2>
+            
+            {% if question_explanations %}
+                <div class="content-section">
+                    <h3><i class="fas fa-times-circle me-2 text-danger"></i>Incorrect Answers & Explanations</h3>
+                    {% for q_text, explanation in question_explanations %}
+                        <div class="mb-4">
+                            <div class="question-title">{{ q_text }}</div>
+                            <div class="explanation">{{ explanation }}</div>
+                        </div>
                     {% endfor %}
-                </ul>
-            </div>
+                </div>
+            {% endif %}
 
-            <h3><i class="fas fa-book-reader me-2"></i>Recommended Articles</h3>
-            <div class="article-list">
+            {% if weak_subtopics_identified %}
+                <div class="content-section">
+                    <h3><i class="fas fa-tasks me-2 text-warning"></i>Targeted Practice (Remedial Quizzes)</h3>
+                    <p>You might want to focus on these sub-topics:</p>
+                    <ul>
+                        {% for sub_topic_item in weak_subtopics_identified %}
+                            <li class="d-flex justify-content-between align-items-center">
+                                <span>{{ sub_topic_item }}</span>
+                                <form method="POST" action="{{ url_for('remedial_quiz') }}" style="display:inline;">
+                                    <input type="hidden" name="sub_topic" value="{{ sub_topic_item }}">
+                                    {# The 'topic' variable here is the main topic of the quiz just taken #}
+                                    <input type="hidden" name="main_topic" value="{{ topic }}"> 
+                                    <button type="submit" class="btn-custom btn-remedial">
+                                        <i class="fas fa-pencil-alt me-1"></i> Practice {{ sub_topic_item | truncate(20) }}
+                                    </button>
+                                </form>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
+        {% else %}
+             <div class="great-job">
+                <h2><i class="fas fa-check-circle me-2"></i>🎉 Great Job, {{ username | default('Guest') }}!</h2>
+                <p>No specific weak areas identified in this quiz. Keep up the excellent work!</p>
+            </div>
+        {% endif %}
+
+
+        {% if articles and articles|length > 0 %}
+            <div class="content-section article-list">
+                <h2><i class="fas fa-link me-2"></i>Further Reading</h2>
                 <ul>
                     {% for article in articles %}
                         <li>
-                            <b>{{ article['question'] }}</b>:
-                            <a href="{{ article['recommended link'] }}" target="_blank">{{ article['recommended link'] }}</a>
+                            <b>{{ article.topic }}</b>: 
+                            <a href="{{ article.link }}" target="_blank">{{ article.title }}</a>
+                            {% if article.snippet %}<p class="text-muted small mt-1">{{ article.snippet | truncate(150) }}</p>{% endif %}
                         </li>
                     {% endfor %}
                 </ul>
             </div>
-
-            <h3><i class="fas fa-question-circle me-2"></i>Questions You Got Wrong & Explanations</h3>
-            <div class="weak-question">
-                {% for question, explanation in question_explanations %}
-                    <div class="mb-4">
-                        <div class="question-title">{{ question }}</div>
-                        <div class="explanation">{{ explanation }}</div>
-                    </div>
-                {% endfor %}
-            </div>
-        {% else %}
-            <h2 class="text-success text-center">🎉 Great Job! No Weak Areas Found.</h2>
         {% endif %}
 
-        <div class="text-center">
-            <a href="/" class="btn btn-primary mt-4">Try Again</a>
+        <div class="text-center mt-4">
+            <a href="{{ url_for('index') }}" class="btn-custom btn-primary-action"><i class="fas fa-redo me-2"></i>Take Another Quiz</a>
         </div>
     </div>
 

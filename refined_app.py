@@ -21,6 +21,7 @@ from langchain_community.document_loaders import PyPDFLoader # Updated import pa
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import time
 
+
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 load_dotenv()
