@@ -1,2 +1,8 @@
-venv
+# ignore all migrations
+migrations/
+
+# ignore everything in user_data
+user_data/
+
+# ignore local .env
 .env
